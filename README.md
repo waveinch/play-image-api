@@ -36,9 +36,6 @@ Controller
 
 ```
 class MyApiImages @Inject()(
-                       val reactiveMongoApi: ReactiveMongoApi,
-                       val wsClient: WSClient,
-                       val conf: Configuration,
                        @Named(ImageCacher.name) val imageCacherActor: ActorRef
                      )(implicit val ec:ExecutionContext) extends ApiImages {
 

@@ -5,7 +5,6 @@ import javax.inject.Inject
 import fly.play.s3.BucketFile
 import fly.play.s3.S3
 import akka.actor.Actor
-import imageapi.ImageCacher.Width
 import play.api.Configuration
 import play.api.libs.json.Json
 import play.api.libs.ws.WSClient
@@ -88,22 +87,7 @@ class ImageCacher @Inject()(
         val response:ImageCacher.Response = Await.result(future, 30 seconds)
         sender ! response
     }
-    case image: ImageCacher.Image => {
-      val future = for{
-        collection <- cache
-        hit <- collection.find(Json.obj("request" -> image.request)).one[ImageCache]
-        result <- { hit match {
-          case Some(_) => Future {
-            Unit
-          }
-          case None => saveImageInS3(image)
-        }}
-      } yield result
 
-
-      Await.ready(future, 30 seconds)
-
-    }
   }
 
   def tryCache(r:ImageCacher.Request) = {
