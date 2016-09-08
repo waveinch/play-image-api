@@ -5,6 +5,7 @@ import javax.inject.Inject
 import fly.play.s3.BucketFile
 import fly.play.s3.S3
 import akka.actor.Actor
+import imageapi.ImageCacher.Width
 import play.api.Configuration
 import play.api.libs.json.Json
 import play.api.libs.ws.WSClient
@@ -28,6 +29,25 @@ object ImageCacher {
 
   case class Image(bytes: Array[Byte], request: String, name: String)
 
+  case class Request(base:String, image:String,process: Process) {
+    def request = {
+      def operator = process match {
+        case ImageCacher.Width(w) => "width-" + w
+        case ImageCacher.Cover(w, h) => "cover-" + w + "-" + h
+        case ImageCacher.Fit(w, h, c) => "fit-" + c.getOrElse("white") + "-" + w + "-" + h
+      }
+      Seq(operator, image).mkString("-")
+    }
+  }
+
+  trait Process
+  case class Width(width: Int) extends Process
+  case class Cover(width: Int,height:Int) extends Process
+  case class Fit(width: Int,height:Int,color: Option[String]) extends Process
+
+  trait Response
+  case class Redirect(url:String) extends Response
+  case class ImageResponse(image: Array[Byte]) extends Response
 
 }
 
@@ -56,6 +76,18 @@ class ImageCacher @Inject()(
 
 
   def receive = {
+    case request: ImageCacher.Request => {
+        val future = for{
+          cache <- tryCache(request)
+          response <- cache match {
+            case Some(hit) => Future(ImageCacher.Redirect(hit.s3Url))
+            case None => process(request)
+          }
+        } yield response
+
+        val response:ImageCacher.Response = Await.result(future, 30 seconds)
+        sender ! response
+    }
     case image: ImageCacher.Image => {
       val future = for{
         collection <- cache
@@ -72,6 +104,31 @@ class ImageCacher @Inject()(
       Await.ready(future, 30 seconds)
 
     }
+  }
+
+  def tryCache(r:ImageCacher.Request) = {
+    for{
+      collection <- cache
+      hit <- collection.find(Json.obj("request" -> r.request)).one[ImageCache]
+    } yield hit
+  }
+
+  def process(r:ImageCacher.Request) = {
+    println("Processing:" + r.image)
+    def processor = new ImageProcessing(r.base).apply(r.image)
+    val img = r.process match {
+      case ImageCacher.Width(w) => processor.width(w)
+      case ImageCacher.Cover(w,h) => processor.cover(w,h)
+      case ImageCacher.Fit(w,h,c) => processor.fit(w,h,c)
+    }
+
+    for{
+      data <- img
+      image = ImageCacher.Image(data, r.request, r.image)
+      _ <- saveImageInS3(image)
+      response = ImageCacher.ImageResponse(data)
+    } yield response
+
   }
 
   def saveImageInS3(image: ImageCacher.Image): Future[String] = {

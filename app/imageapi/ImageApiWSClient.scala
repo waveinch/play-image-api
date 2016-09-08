@@ -3,13 +3,13 @@ package imageapi
 
 import org.asynchttpclient.{DefaultAsyncHttpClient, AsyncCompletionHandler, Response, AsyncHttpClient}
 
-import scala.concurrent.{Promise, Future}
+import scala.concurrent.{ExecutionContext, Promise, Future}
 
 /**
   * Created by unoedx on 08/09/16.
   */
 object ImageApiWSClient {
-  def get(url:String):Future[Response] = {
+  def get(url:String)(implicit ec: ExecutionContext) :Future[Response] = {
     val client = new DefaultAsyncHttpClient
     val builder = client.prepareGet(url)
     builder.setRequestTimeout(10000)
@@ -27,6 +27,10 @@ object ImageApiWSClient {
       }
     })
 
-    result.future
+    val future = result.future
+
+    future.onComplete(_ => client.close())
+
+    future
   }
 }
