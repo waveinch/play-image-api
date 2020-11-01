@@ -6,12 +6,15 @@ version := "1.0-SNAPSHOT"
 
 lazy val root = (project in file(".")).enablePlugins(PlayScala)
 
-scalaVersion := "2.11.7"
+scalaVersion := "2.13.3"
+
+resolvers += Resolver.bintrayRepo("waveinch","maven")
 
 libraryDependencies ++= Seq(
   ws,
-  "org.reactivemongo" %% "play2-reactivemongo" % "0.11.14",
-  "com.sksamuel.scrimage" %% "scrimage-core" % "2.1.5",
-  "net.kaliber" %% "play-s3" % "8.0.0",
-  "net.codingwell" %% "scala-guice" % "4.1.0"
+  guice,
+  "org.reactivemongo" %% "play2-reactivemongo" % "0.18.1-play27",
+  "com.sksamuel.scrimage" % "scrimage-core" % "4.0.10",
+  "net.kaliber" %% "play-s3" % "11.0.0",
+  "net.codingwell" %% "scala-guice" % "4.2.11"
 )

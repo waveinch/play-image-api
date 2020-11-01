@@ -2,52 +2,61 @@ package imageapi
 
 import java.io.InputStream
 
+import akka.stream.Materializer
+import akka.stream.scaladsl.StreamConverters
+import com.sksamuel.scrimage.ImmutableImage
+import com.sksamuel.scrimage.color.{Color, RGBColor, X11Colorlist}
 import com.sksamuel.scrimage.nio.JpegWriter
-import com.sksamuel.scrimage.{Image, Color}
-import play.api.Logger
+import javax.inject.Inject
+import play.api.libs.ws.WSClient
 
 import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.duration._
 
 /**
   * Created by unoedx on 08/09/16.
   */
-class ImageProcessing(baseUrl:String)(implicit ec:ExecutionContext) {
 
 
-  implicit val writer = JpegWriter().withCompression(70)
 
-  def apply(image:String) = new ImageProcessor(image)
+class ImageProcessing @Inject()(
+                                wsClient: WSClient
+                               )(implicit ec:ExecutionContext, materializer: Materializer) {
 
-  class ImageProcessor(image:String) {
+
+
+  def apply(baseUrl:String,image:String) = new ImageProcessor(baseUrl,image)
+
+  class ImageProcessor(baseUrl:String,image:String) {
     def fit(width: Int, height: Int, color: Option[String] = None): Future[Array[Byte]] = {
-      val c = color match {
-        case Some(Colors.twBlue) => Color(110, 185, 216)
-        case Some(Colors.twBlueGray) => Color(167, 188, 198)
-        case _ => Color.White
+      val c:Color = color match {
+        case Some(Colors.twBlue) => new RGBColor(110, 185, 216)
+        case Some(Colors.twBlueGray) => new RGBColor(167, 188, 198)
+        case _ => X11Colorlist.White
       }
 
       process { in =>
-        Image.fromStream(in)
-          .fit(width, height, c)
-          .bytes(JpegWriter().withCompression(90))
+        ImmutableImage.loader().fromStream(in)
+          .fit(width, height, c.toAWT)
+          .bytes(new JpegWriter().withCompression(80))
       }
     }
 
     def cover(width: Int, height: Int): Future[Array[Byte]] = process{ in =>
-      Image.fromStream(in).cover(width, height).bytes
+      ImmutableImage.loader().fromStream(in).cover(width, height).bytes(new JpegWriter().withCompression(80))
     }
 
 
     def width(width: Int): Future[Array[Byte]] = process{ in =>
-      Image.fromStream(in).scaleToWidth(width).bytes
+      ImmutableImage.loader().fromStream(in).scaleToWidth(width).bytes(new JpegWriter().withCompression(80))
     }
 
     private def process(action: InputStream => Array[Byte]): Future[Array[Byte]] = for {
       response <- {
-        ImageApiWSClient.get(baseUrl + image)
+        wsClient.url(baseUrl + image).withMethod("GET").withRequestTimeout(60.seconds).stream()
       }
       img <- Future {
-        val in = response.getResponseBodyAsStream
+        val in = response.bodyAsSource.runWith(StreamConverters.asInputStream(60.seconds))
         val img = action(in)
         in.close()
         img

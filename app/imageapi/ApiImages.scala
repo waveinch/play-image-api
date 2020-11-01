@@ -22,7 +22,7 @@ trait ApiImages extends Controller {
 
   def baseUrl:String
 
-  implicit val timeout = Timeout(60 seconds)
+  implicit val timeout = Timeout(60.seconds)
 
 
   private def imageAction(trasform: () => Future[Any]) = Action.async{ r =>

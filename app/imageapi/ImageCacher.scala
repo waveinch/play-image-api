@@ -8,7 +8,7 @@ import akka.actor.Actor
 import play.api.Configuration
 import play.api.libs.json.Json
 import play.api.libs.ws.WSClient
-import play.modules.reactivemongo.json._
+import reactivemongo.play.json._
 import play.modules.reactivemongo.ReactiveMongoApi
 import reactivemongo.play.json.collection.JSONCollection
 
@@ -53,7 +53,8 @@ object ImageCacher {
 class ImageCacher @Inject()(
                              reactiveMongoApi: ReactiveMongoApi,
                              wsClient: WSClient,
-                             conf: Configuration
+                             conf: Configuration,
+                             imageProcessing: ImageProcessing
                            )(implicit ec: ExecutionContext) extends Actor {
 
 
@@ -84,7 +85,7 @@ class ImageCacher @Inject()(
           }
         } yield response
 
-        val response:ImageCacher.Response = Await.result(future, 30 seconds)
+        val response:ImageCacher.Response = Await.result(future, 30.seconds)
         sender ! response
     }
 
@@ -99,7 +100,7 @@ class ImageCacher @Inject()(
 
   def process(r:ImageCacher.Request) = {
     println("Processing:" + r.image)
-    def processor = new ImageProcessing(r.base).apply(r.image)
+    def processor = imageProcessing.apply(r.base,r.image)
     val img = r.process match {
       case ImageCacher.Width(w) => processor.width(w)
       case ImageCacher.Cover(w,h) => processor.cover(w,h)
