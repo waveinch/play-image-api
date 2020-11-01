@@ -9,7 +9,7 @@ lazy val root = (project in file("."))
     bintrayOrganization := Some("waveinch"),
     publishMavenStyle := true,
     licenses += ("Apache-2.0", url("http://www.opensource.org/licenses/apache2.0.php")),
-    git.useGitDescribe := true,
+    git.useGitDescribe := true
   )
   .enablePlugins(
     PlayScala,
