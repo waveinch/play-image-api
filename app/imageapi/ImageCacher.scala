@@ -1,19 +1,20 @@
 package imageapi
 
 import javax.inject.Inject
-
 import fly.play.s3.BucketFile
 import fly.play.s3.S3
 import akka.actor.Actor
 import play.api.Configuration
 import play.api.libs.json.Json
 import play.api.libs.ws.WSClient
-import reactivemongo.play.json._
 import play.modules.reactivemongo.ReactiveMongoApi
-import reactivemongo.play.json.collection.JSONCollection
+import reactivemongo.api.bson.collection.BSONCollection
 
-import scala.concurrent.{ExecutionContext, Await, Future}
+import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration._
+
+import reactivemongo.play.json.compat._,
+json2bson.{ toDocumentReader, toDocumentWriter }
 
 /**
   * Created by unoedx on 08/09/16.
@@ -70,7 +71,7 @@ class ImageCacher @Inject()(
     def s3Url = s3baseUrl + cachedName
   }
 
-  def cache: Future[JSONCollection] = reactiveMongoApi.database.map(_.collection[JSONCollection](cacheCollection))
+  def cache: Future[BSONCollection] = reactiveMongoApi.database.map(_.collection[BSONCollection](cacheCollection))
 
   implicit val formatter = ImageCache.formatter
 
@@ -120,7 +121,7 @@ class ImageCacher @Inject()(
     for {
       collection <- cache
       _ <- S3.fromConfiguration(wsClient,conf).getBucket(s3bucket) add BucketFile(image.cachedName, "image/jpeg", image.bytes)
-      _ <- collection.insert(ImageCache(image.request, image.s3Url))
+      _ <- collection.insert.one(ImageCache(image.request, image.s3Url))
     } yield "Uploaded new"
   }
 
